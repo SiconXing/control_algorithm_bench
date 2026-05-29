@@ -1,68 +1,127 @@
-"""
-Function-Fitting RL Benchmark — Entry Point
+"""Test script for the surface optimization RL environment."""
 
-Usage:
-    python main.py                        Single function demo (step_single)
-    python main.py --func step_multi      Train on a specific function
-    python main.py --batch                Run batch experiments (all functions)
-    python main.py --batch --quick        Quick batch experiment
-"""
-import argparse
-import os
-import sys
-
-import function_env
-
-from src.piecewise_functions import FUNCTION_LIST, FUNCTION_BY_NAME
-from src.agent_factory import DQNAgent
-from train import train, evaluate_function_fit, plot_progress, plot_function_fit
+from envs import make_env, list_functions
 
 
-def run_demo(func_name="step_single", episodes=800):
-    """Single function training demo."""
-    func_meta = FUNCTION_BY_NAME.get(func_name)
-    if func_meta is None:
-        print(f"Unknown function: {func_name}")
-        print(f"Available: {[f['name'] for f in FUNCTION_LIST]}")
-        sys.exit(1)
+def test_basic(func: str, dim: int = 3, mode: str = "minimize") -> bool:
+    """Quick smoke test for a single function."""
+    env = make_env(func, dim=dim, mode=mode, max_steps=50)
+    obs, _ = env.reset()
+    for _ in range(20):
+        action = env.action_space.sample()
+        obs, reward, done, _, info = env.step(action)
+    return True
 
-    env = function_env.FunctionFittingEnv(func_meta["id"], n_actions=100, episode_length=200)
-    print(f"\nFunction-fitting RL demo")
-    print(f"  Function: {env.get_function_name()}  ({func_meta['difficulty']})")
-    print(f"  State size: {env.get_state_size()}")
-    print(f"  Action size: {env.get_action_size()}  (y ∈ [{env.get_y_min():.3f}, {env.get_y_max():.3f}])")
 
-    agent = DQNAgent(
-        state_size=env.get_state_size(),
-        action_size=env.get_action_size(),
-        hidden_layers=[64, 64],
-    )
+def test_continuous():
+    """Test continuous action mode."""
+    env = make_env("sphere", dim=4, action_type="continuous")
+    obs, _ = env.reset()
+    import numpy as np
+    for _ in range(10):
+        action = np.random.uniform(-1, 1, size=4)
+        obs, reward, done, _, info = env.step(action)
+    return True
 
-    agent, rewards, losses = train(env, agent, episodes=episodes)
 
-    # Evaluate function fit
-    xs, y_true, y_pred, mae = evaluate_function_fit(env, agent, n_samples=1000)
-    print(f"\n  Function fit MAE: {mae:.4f}")
+def test_max_mode():
+    """Test maximization mode."""
+    env = make_env("sphere", dim=2, mode="maximize", bounds=(-3, 3))
+    assert env.optimal_value == 18.0, f"Expected 18, got {env.optimal_value}"
+    return True
 
-    # Save plots
-    os.makedirs("results", exist_ok=True)
-    plot_progress(rewards, losses, save_path="results/training_progress.png")
-    plot_function_fit(xs, y_true, y_pred, mae, env.get_function_name(),
-                      save_path=f"results/{env.get_function_name()}.png")
-    print(f"  Plots saved: results/training_progress.png, results/{env.get_function_name()}.png")
+
+def test_custom():
+    """Test custom_sin with user coefficients."""
+    env = make_env("custom_sin", dim=3)
+    env.set_custom_coefficients([1.0, 2.0, 0.0, 0.5, 3.0, 1.0, -0.7, 1.0, 1.5])
+    env.set_custom_optimal([0.5, 0.3, -0.1], -0.8)
+    assert env.optimal_value == -0.8
+    return True
+
+
+def main():
+    all_funcs = list_functions()
+    print("=" * 70)
+    print("Surface Optimization RL Environment — Test Suite")
+    print("=" * 70)
+
+    # 1. Test all functions
+    print("\n[1] All 9 benchmark functions (discrete, dim=3, minimize)")
+    for name in all_funcs:
+        try:
+            test_basic(name)
+            print(f"    {name:20s}  OK")
+        except Exception as e:
+            print(f"    {name:20s}  FAIL — {e}")
+
+    # 2. Test varying dimensions
+    print("\n[2] Varying dimensions (sphere, 1D → 10D)")
+    for d in [1, 3, 5, 10]:
+        try:
+            test_basic("sphere", dim=d)
+            print(f"    dim={d:2d}  OK")
+        except Exception as e:
+            print(f"    dim={d:2d}  FAIL — {e}")
+
+    # 3. Continuous action mode
+    print("\n[3] Continuous action mode")
+    try:
+        test_continuous()
+        print("    OK")
+    except Exception as e:
+        print(f"    FAIL — {e}")
+
+    # 4. Maximization mode
+    print("\n[4] Maximization mode (sphere, bounds [-3,3])")
+    try:
+        test_max_mode()
+        print("    OK — optimal_value=18.0 at corner (-3,-3)")
+    except Exception as e:
+        print(f"    FAIL — {e}")
+
+    # 5. Custom function
+    print("\n[5] Custom sinusoidal function")
+    try:
+        test_custom()
+        print("    OK")
+    except Exception as e:
+        print(f"    FAIL — {e}")
+
+    # 6. Optimal value benchmarks (all functions, minimize, dim=5)
+    print("\n[6] Optimal values (minimize, dim=5)")
+    for name in all_funcs:
+        try:
+            bounds = all_funcs[name].get("typical_bounds", (-5, 5))
+            env = make_env(name, dim=5, mode="minimize", bounds=bounds)
+            opt = env.optimal_value
+            pos = env.optimal_position
+            print(f"    {name:20s}  opt={opt:10.6f}  pos=[{pos[0]:.3f}, {pos[1]:.3f}, ...]")
+        except Exception as e:
+            print(f"    {name:20s}  FAIL — {e}")
+
+    # 7. End-to-end: random walk benchmark
+    print("\n[7] Random-walk benchmark (200 steps, minimize, dim=5)")
+    for name in ["sphere", "rastrigin", "ackley", "rosenbrock", "griewank"]:
+        try:
+            bounds = all_funcs[name].get("typical_bounds", (-5, 5))
+            env = make_env(name, dim=5, mode="minimize", max_steps=200, bounds=bounds)
+            obs, _ = env.reset()
+            best = float("inf")
+            for _ in range(200):
+                a = env.action_space.sample()
+                obs, _, done, _, info = env.step(a)
+                if info["function_value"] < best:
+                    best = info["function_value"]
+            gap = best - env.optimal_value
+            print(f"    {name:20s}  best={best:10.4f}  opt={env.optimal_value:10.4f}  gap={gap:8.4f}")
+        except Exception as e:
+            print(f"    {name:20s}  FAIL — {e}")
+
+    print("\n" + "=" * 70)
+    print("All tests completed.")
+    print("=" * 70)
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Function-fitting RL benchmark")
-    parser.add_argument("--func", type=str, default="step_single",
-                        help="Function name to train on (default: step_single)")
-    parser.add_argument("--batch", action="store_true", help="Run batch experiments")
-    parser.add_argument("--quick", action="store_true", help="Quick mode for batch experiments")
-    parser.add_argument("--episodes", type=int, default=800, help="Number of training episodes")
-    args = parser.parse_args()
-
-    if args.batch:
-        from experiments import run_batch
-        run_batch(episodes=args.episodes, quick=args.quick)
-    else:
-        run_demo(func_name=args.func, episodes=args.episodes)
+    main()

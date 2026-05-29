@@ -1,11 +1,15 @@
 [project]
-name = "simple-env"
+name = "control-algorithm-bench"
 version = "0.1.0"
-description = "Add your description here"
+description = "High-dimensional surface optimization RL benchmark with C++/pybind11 backend"
 readme = "README.md"
 requires-python = ">=3.9"
 dependencies = [
-    "matplotlib>=3.9.4",
-    "numpy>=2.0.2",
-    "torch>=2.0",
+    "numpy>=1.21",
+    "pybind11>=2.10",
+    "matplotlib>=3.5",
 ]
+
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
