@@ -8,7 +8,7 @@ def main():
 
     suite.run(
         functions=["sphere", "rastrigin", "ackley", "griewank"],
-        dims=[3, 5],
+        dims=[5],  # Dimension of the optimization problem, it can be increased into a list
         agents=["random", "hill_climb", "dqn", "ppo"],
         modes=["minimize"],
     )

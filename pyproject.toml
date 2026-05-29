@@ -8,6 +8,7 @@ dependencies = [
     "numpy>=1.21",
     "pybind11>=2.10",
     "matplotlib>=3.5",
+    "torch>=2.8.0",
 ]
 
 [build-system]
