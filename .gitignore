@@ -6,12 +6,15 @@ dist/
 .venv/
 
 # C++ build artifacts
-envs/build/
-envs/_surface_env_cpp*.pyd
-envs/_surface_env_cpp*.so
-envs/_surface_env_cpp*.dylib
+src/envs/build/
+src/envs/_surface_env_cpp*.pyd
+src/envs/_surface_env_cpp*.so
+src/envs/_surface_env_cpp*.dylib
 *.o
 *.obj
+
+# Benchmark output
+results/
 
 # IDE
 .vscode/
